@@ -1,0 +1,172 @@
+expname: lv_forward_sphere
+device_ids: -1        # single GPU / DP / DDP; run on all available GPUs; 
+
+data:
+  type: Mitsuba2
+  # one batch, one image DO NOT CHANGE THIS TO MORE THAN 1!! change to ranys instead!  see forward_two_bounce
+  # TODO (KTIWARY): i will fix this.. in specular function it currently reshapes to (-1,1) insetad of the diffuse.shape
+  batch_size: 1       
+  data_dir: ~/datasets/living-room_v09_forward
+  downscale: 1       # downscale image for training
+  scale_radius: 3.0   # scale the dataset's all camera to be within this radius
+  pin_memory: True
+
+  near: 0.2 # 0.2 for living room, 0 for owl/metal ball, 1.25 for pokemon, 
+  far: 0.6  # 0.6 for living room, 6 for owl/metal ball, 2.5 for pokemon
+  max_clip_specular: 1.0
+
+  N_rays: 128 #64 #16 # 64       # N_rays for training
+  val_rayschunk: 256 # N_rays for validation
+  val_downscale: 2   # downscale image for validation
+  
+  space: linear
+  gt_type: normal
+  view_sample: 1
+
+model:
+  framework: VolSDF
+  obj_bounding_radius: 3.0  # scene sphere, as in the VolSDF paper
+  polarized: False
+  pol_render_type: accum_stokes
+  only_diffuse: False
+  fine_spec: False
+  
+  outside_scene: "builtin"  # [builtin, nerf++]
+  max_upsample_iter: 6      # up sample iteratioms, as in the VolSDF paper
+
+  W_geometry_feature: 256
+
+  surface:
+    radius_init: 1.0        # as in VolSDF supp B.3, unit sphere
+    D: 8
+    skips: [4]
+    embed_multires: 6
+
+  radiance:
+    D: 4
+    W: 512
+    skips: []
+    embed_multires: 10
+    embed_multires_view: 2
+  
+  N_samples: 128
+  white_bkgd: False
+  use_env_mlp: virtual_cone_caustic_approx_5drf_mip_nerf 
+  env_mlp_type: no_fres # Options no_fres
+  use_mask: True
+  sh_embed: True
+  disable_fres: False
+
+training:
+  speed_factor: 10.0
+
+  lr: 5.0e-5
+  w_eikonal: 0.1
+  w_s1_s2: 1.25
+  w_mask: 1.
+  w_dop: 0.0
+  w_aolp: 0.0
+  learn_pi2_ambiguity: False
+  mask_specular: False
+  mask_target_object: True
+  mask_target_horizon: False
+  num_no_s1_s2: 3000 # number of non-specular steps 
+  mask_only_until: 1000
+  remove_diffuse_component: False
+  grad_norm_max: 15
+  loss_type: l1
+  loss_space: linear
+  w_spec_reg: 0.
+  normal_reg_loss: True
+
+  log_root_dir: "cvc-logs-nov1"
+
+  num_iters: 800000
+
+  # lr decay
+  scheduler:
+    type: exponential_step
+    min_factor: 0.1
+
+  ckpt_file: null 
+  ckpt_ignore_keys: []
+  ckpt_only_use_keys: null 
+
+  monitoring: tensorboard
+
+  i_save: 900       # unit: seconds
+  i_backup: 30000   # unit: itertation steps
+
+  i_val: 3000
+  i_val_mesh: 10000
+
+two_bounce:
+  near: 0 # 0 for all 
+  far: 2.5 # 2.5 for living room, 6 for owl/metal ball, 16 for pokemon
+  mip_nerf:
+    use_mip_nerf: True
+    num_samples: 64  # The number of samples per level.
+    num_levels: 2  # The number of sampling levels.
+    resample_padding: 0.01  # Dirichlet/alpha "padding" on the histogram.
+    stop_resample_grad: True  # If True, don't backprop across levels')
+    use_viewdirs: True  # If True, use view directions as a condition.
+    disparity: False  # If True, sample linearly in disparity, not in depth.
+    ray_shape: 'cone'  # The shape of cast rays ('cone' or 'cylinder').
+    min_deg_point: 0  # Min degree of positional encoding for 3D points.
+    max_deg_point: 16  # Max degree of positional encoding for 3D points.
+    deg_view: 4  # Degree of positional encoding for viewdirs.
+    density_activation: 'softplus'  # Density activation.
+    density_noise: 0.  # Standard deviation of noise added to raw density.
+    density_bias: -1.  # The shift added to raw densities pre-activation.
+    rgb_activation: 'softplus'  # The RGB activation.
+    rgb_padding: 0.001  # Padding added to the RGB outputs.
+    disable_integration: False  # If True, use PE instead of IPE.
+    append_identity: True  # If True, append original view direction features
+    use_depth_for_two_bounce: False # If true then computes the depth but it won't work! 
+    add_ide_features: False
+    add_geom_features: False
+    mlp:
+      net_depth: 8  # The depth of the first part of MLP.
+      net_width: 256  # The width of the first part of MLP.
+      net_depth_condition: 1  # The depth of the second part of MLP.
+      net_width_condition: 128  # The width of the second part of MLP.
+      net_activation: 'relu'  # The activation function.
+      skip_index: 4  # Add a skip connection to the output of every N layers.
+      num_rgb_channels: 3  # The number of RGB channels.
+      num_density_channels: 1  # The number of density channels.
+  
+  loss:
+    disable_multiscale_loss: False
+    coarse_loss_mult: 0.1
+    normalize_loss: False # should be False 
+    bound_gt: False # should be False 
+    use_distloss: True 
+    
+  training:
+    lr: 1.0e-6
+    log_root_dir: "logs"
+    grad_norm_max: 15
+    loss_type: mse
+    loss_space: linear
+    include_polarization: False
+    num_iters: 200000
+    max_point_to_sample: 16
+    hfov_val : 100
+    ckpt_file: null # will be read by python as None
+    ckpt_ignore_keys: []     # only change if you want to drop certain keys in the saved checkpionts.
+    ckpt_only_use_keys: null # only change if you want to only use certain keys in the saved checkpionts.
+    detach_radii: True
+    detach_nablas: False
+    detach_x: True
+    use_refl_as_vdirs: True
+    start_refl_as_vdirs_at: 0
+    # lr decay
+    scheduler:
+      type: exponential_step
+      min_factor: 0.1
+
+  debug:
+    use_ground_truth_specular: False
+    print_shapes: True
+
+
