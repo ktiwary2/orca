@@ -2,7 +2,7 @@ from utils import io_util, mesh_util, rend_util
 from models.frameworks import get_model
 from utils.checkpoints import sorted_ckpts
 from utils.print_fn import log
-from utils.two_bounce_utils import integrate_virtual_cameras
+#from utils.two_bounce_utils import integrate_virtual_cameras
 
 from src.polarization import cues_from_stokes, stokes_from_normal_rad, colorize_cues
 from src.utils import linear_rgb_to_srgb_np, spec_srgb_lin, linear_rgb_to_srgb, srgb_to_linear_rgb_np, visualize_depth
